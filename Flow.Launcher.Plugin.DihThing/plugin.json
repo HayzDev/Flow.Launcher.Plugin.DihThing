@@ -1,0 +1,12 @@
+{
+    "ID": "7C6027FC69F8449BB64E32F070122C67",
+    "ActionKeyword": "d",
+    "Name": "DihThing",
+    "Description": "A Vim-user's plugin to quickly navigate without the Mousepad",
+    "Author": "HayzDev",
+    "Version": "1.0.0",
+    "Language": "csharp",
+    "Website": "https://github.com/HayzDev/Flow.Launcher.Plugin.DihThing",
+    "IcoPath": "icon.png",
+    "ExecuteFileName": "Flow.Launcher.Plugin.DihThing.dll"
+}

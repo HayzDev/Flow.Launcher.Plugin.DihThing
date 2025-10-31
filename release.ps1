@@ -1,0 +1,2 @@
+dotnet publish Flow.Launcher.Plugin.DihThing -c Release -r win-x64 --no-self-contained
+Compress-Archive -LiteralPath Flow.Launcher.Plugin.DihThing/bin/Release/win-x64/publish -DestinationPath Flow.Launcher.Plugin.DihThing/bin/DihThing.zip -Force
