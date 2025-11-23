@@ -27,36 +27,174 @@ namespace Flow.Launcher.Plugin.DihThing
                 Action = c =>
                 {
                     Console.WriteLine(c);
-                    var regions = Ocr.GetScreenText();
-                    var queryWords = query.Search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    var queryWordCount = queryWords.Length;
 
-                    var results = regions.Where(r =>
+                    // Hide Flow Launcher window before taking screenshot
+                    Context.API.HideMainWindow();
+
+                    // Small delay to ensure window is hidden
+                    System.Threading.Thread.Sleep(100);
+
+                    // Parse quadrant and direction from query
+                    int? quadrant = null;
+                    string direction = null; // L, R, T, B
+                    string searchText = query.Search;
+
+                    // Check for quadrant (1-4) and direction (L/R/T/B)
+                    // Must be followed by a space to avoid false positives
+                    if (searchText.Length > 0)
                     {
-                        var regionWords = r.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                        if (regionWords.Length < queryWordCount)
-                        {
-                            return false;
-                        }
+                        int startIndex = 0;
+                        bool hasModifier = false;
 
-                        for (int i = 0; i <= regionWords.Length - queryWordCount; i++)
+                        // Check if starts with digit
+                        if (char.IsDigit(searchText[0]))
                         {
-                            var currentChunk = string.Join(" ", regionWords.Skip(i).Take(queryWordCount));
-                            if (StringExtensions.LevenshteinDistance(currentChunk, query.Search) <
-                                _settings.MaxLevenshteinDistance)
+                            int firstDigit = int.Parse(searchText[0].ToString());
+                            if (firstDigit >= 1 && firstDigit <= 4)
                             {
-                                return true;
+                                // Check for direction letter after digit
+                                if (searchText.Length > 1 && char.IsLetter(searchText[1]))
+                                {
+                                    char dirChar = char.ToUpper(searchText[1]);
+                                    if (dirChar == 'L' || dirChar == 'R' || dirChar == 'T' || dirChar == 'B')
+                                    {
+                                        // Must be followed by space or end of string
+                                        if (searchText.Length == 2 || searchText[2] == ' ')
+                                        {
+                                            quadrant = firstDigit;
+                                            direction = dirChar.ToString();
+                                            startIndex = 2;
+                                            hasModifier = true;
+                                        }
+                                    }
+                                }
+                                // Just quadrant, no direction
+                                else if (searchText.Length == 1 || searchText[1] == ' ')
+                                {
+                                    quadrant = firstDigit;
+                                    startIndex = 1;
+                                    hasModifier = true;
+                                }
+                            }
+                        }
+                        // Check if starts with direction letter
+                        else if (char.IsLetter(searchText[0]))
+                        {
+                            char dirChar = char.ToUpper(searchText[0]);
+                            if (dirChar == 'L' || dirChar == 'R' || dirChar == 'T' || dirChar == 'B')
+                            {
+                                // Check for quadrant after direction
+                                if (searchText.Length > 1 && char.IsDigit(searchText[1]))
+                                {
+                                    int digit = int.Parse(searchText[1].ToString());
+                                    if (digit >= 1 && digit <= 4)
+                                    {
+                                        // Must be followed by space or end of string
+                                        if (searchText.Length == 2 || searchText[2] == ' ')
+                                        {
+                                            direction = dirChar.ToString();
+                                            quadrant = digit;
+                                            startIndex = 2;
+                                            hasModifier = true;
+                                        }
+                                    }
+                                }
+                                // Just direction, no quadrant
+                                else if (searchText.Length == 1 || searchText[1] == ' ')
+                                {
+                                    direction = dirChar.ToString();
+                                    startIndex = 1;
+                                    hasModifier = true;
+                                }
                             }
                         }
 
-                        return false;
-                    }).ToList();
-                    if (results.Any())
+                        if (hasModifier)
+                        {
+                            searchText = searchText.Substring(startIndex).TrimStart();
+                        }
+                    }
+
+                    // Get screen bounds and calculate quadrant if specified
+                    var screenBounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
+                    System.Drawing.Rectangle? searchArea = null;
+
+                    if (quadrant.HasValue)
                     {
-                        var firstResult = results.First();
-                        var centerX = firstResult.Bounds.X + firstResult.Bounds.Width / 2;
-                        var centerY = firstResult.Bounds.Y + firstResult.Bounds.Height / 2;
-                        MouseHelper.Click(centerX, centerY);
+                        int halfWidth = screenBounds.Width / 2;
+                        int halfHeight = screenBounds.Height / 2;
+
+                        searchArea = quadrant.Value switch
+                        {
+                            1 => new System.Drawing.Rectangle(0, 0, halfWidth, halfHeight), // Top-left
+                            2 => new System.Drawing.Rectangle(halfWidth, 0, halfWidth, halfHeight), // Top-right
+                            3 => new System.Drawing.Rectangle(0, halfHeight, halfWidth, halfHeight), // Bottom-left
+                            4 => new System.Drawing.Rectangle(halfWidth, halfHeight, halfWidth,
+                                halfHeight), // Bottom-right
+                            _ => null
+                        };
+
+                        // Show overlay for visual feedback
+                        if (searchArea.HasValue)
+                        {
+                            var overlay = new QuadrantOverlay(searchArea.Value);
+                            overlay.ShowTemporarily(500);
+                        }
+                    }
+
+                    var regions = Ocr.GetScreenText();
+
+                    // Filter regions by quadrant if specified
+                    if (searchArea.HasValue)
+                    {
+                        regions = regions.Where(r => searchArea.Value.IntersectsWith(r.Bounds)).ToList();
+                    }
+
+                    var queryWords = searchText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    var queryWordCount = queryWords.Length;
+
+                    if (queryWordCount > 0)
+                    {
+                        // Collect all matches instead of clicking the first one
+                        var matches = new List<(List<Ocr.TextRegion> regions, int centerX, int centerY)>();
+
+                        for (int i = 0; i <= regions.Count - queryWordCount; i++)
+                        {
+                            var candidateRegions = regions.GetRange(i, queryWordCount);
+                            var candidateText = string.Join(" ", candidateRegions.Select(r => r.Text)).ToLower();
+                            var queryTextLower = searchText.ToLower();
+
+                            var distance = StringExtensions.LevenshteinDistance(candidateText, queryTextLower);
+                            var ratio = (double)distance / candidateText.Length;
+
+                            if (ratio <= _settings.MaxLevenshteinDistance)
+                            {
+                                var minX = candidateRegions.Min(r => r.Bounds.X);
+                                var minY = candidateRegions.Min(r => r.Bounds.Y);
+                                var maxX = candidateRegions.Max(r => r.Bounds.X + r.Bounds.Width);
+                                var maxY = candidateRegions.Max(r => r.Bounds.Y + r.Bounds.Height);
+
+                                var centerX = (minX + maxX) / 2;
+                                var centerY = (minY + maxY) / 2;
+
+                                matches.Add((candidateRegions, centerX, centerY));
+                            }
+                        }
+
+                        // Select match based on direction
+                        if (matches.Any())
+                        {
+                            var selectedMatch = direction switch
+                            {
+                                "L" => matches.OrderBy(m => m.centerX).First(), // Leftmost
+                                "R" => matches.OrderByDescending(m => m.centerX).First(), // Rightmost
+                                "T" => matches.OrderBy(m => m.centerY).First(), // Topmost
+                                "B" => matches.OrderByDescending(m => m.centerY).First(), // Bottommost
+                                _ => matches.First() // Default: first match
+                            };
+
+                            MouseHelper.Click(selectedMatch.centerX, selectedMatch.centerY);
+                        }
                     }
 
                     return true;
@@ -86,9 +224,9 @@ namespace Flow.Launcher.Plugin.DihThing
             var label = new System.Windows.Controls.Label { Content = "Max Levenshtein Distance:" };
             var textBox = new System.Windows.Controls.TextBox { Text = _settings.MaxLevenshteinDistance.ToString() };
 
-            textBox.TextChanged += (sender, e) =>
+            textBox.TextChanged += (_, _) =>
             {
-                if (int.TryParse(textBox.Text, out int result))
+                if (double.TryParse(textBox.Text, out double result))
                 {
                     _settings.MaxLevenshteinDistance = result;
                     Context.API.SaveSettingJsonStorage<Settings>();

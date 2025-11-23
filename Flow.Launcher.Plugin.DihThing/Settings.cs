@@ -2,9 +2,9 @@ namespace Flow.Launcher.Plugin.DihThing
 {
 	public class Settings : BaseModel
 	{
-		private int _maxLevenshteinDistance = 2;
+		private double _maxLevenshteinDistance = 0.2;
 
-		public int MaxLevenshteinDistance
+		public double MaxLevenshteinDistance
 		{
 			get => _maxLevenshteinDistance;
 			set
