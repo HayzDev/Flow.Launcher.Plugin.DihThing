@@ -1,0 +1,16 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\ocr.cs(8,15): warning CS1591: Missing XML comment for publicly visible type or member 'OCR' [C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\Flow.Launcher.Plugin.DihThing.csproj]
+C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\ocr.cs(10,21): warning CS1591: Missing XML comment for publicly visible type or member 'OCR.CaptureScreen()' [C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\Flow.Launcher.Plugin.DihThing.csproj]
+C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\ocr.cs(28,22): warning CS1591: Missing XML comment for publicly visible type or member 'OCR.Main()' [C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\Flow.Launcher.Plugin.DihThing.csproj]
+  Flow.Launcher.Plugin.DihThing -> C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\bin\Debug\Flow.Launcher.Plugin.DihThing.dll
+
+Build succeeded.
+
+C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\ocr.cs(8,15): warning CS1591: Missing XML comment for publicly visible type or member 'OCR' [C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\Flow.Launcher.Plugin.DihThing.csproj]
+C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\ocr.cs(10,21): warning CS1591: Missing XML comment for publicly visible type or member 'OCR.CaptureScreen()' [C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\Flow.Launcher.Plugin.DihThing.csproj]
+C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\ocr.cs(28,22): warning CS1591: Missing XML comment for publicly visible type or member 'OCR.Main()' [C:\Users\xande\Documents\Dev\C#\FlowLauncherPlugins\Dihthing\Flow.Launcher.Plugin.DihThing\Flow.Launcher.Plugin.DihThing.csproj]
+    3 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.57
