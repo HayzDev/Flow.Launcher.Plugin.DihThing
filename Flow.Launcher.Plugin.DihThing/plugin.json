@@ -7,6 +7,8 @@
   "Version": "1.0.0",
   "Language": "csharp",
   "Website": "https://github.com/HayzDev/Flow.Launcher.Plugin.DihThing",
-  "IcoPath": "icon.png",
+  "UrlDownload": "https://github.com/HayzDev/Flow.Launcher.Plugin.DihThing/archive/refs/heads/main.zip",
+  "UrlSourceCode": "https://github.com/HayzDev/Flow.Launcher.Plugin.DihThing/tree/main",
+  "IcoPath": "https://preview.redd.it/origin-to-the-sybau-reaction-image-v0-d6a7p24zx9af1.jpg?width=640&crop=smart&auto=webp&s=b450d9fc763fec01e320c05a4e864e41f560be56",
   "ExecuteFileName": "Flow.Launcher.Plugin.DihThing.dll"
 }
