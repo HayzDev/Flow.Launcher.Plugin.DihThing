@@ -60,9 +60,21 @@ namespace Flow.Launcher.Plugin.DihThing
 		/// <returns>A list of TextRegion objects.</returns>
 		public static List<TextRegion> GetScreenText()
 		{
+			using var img = CaptureScreen();
+			return GetTextFromPix(img);
+		}
+
+		/// <summary>
+		/// Processes a Pix image and returns a list of recognized text regions.
+		/// </summary>
+		/// <param name="img">The Pix image to process.</param>
+		/// <returns>A list of TextRegion objects.</returns>
+		public static List<TextRegion> GetTextFromPix(Pix img)
+		{
+			if (img == null) return new List<TextRegion>();
+
 			string tessDataPath = @"C:\Program Files\Tesseract-OCR\tessdata";
 			using var engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
-			using var img = CaptureScreen();
 			using var page = engine.Process(img);
 
 			var regions = new List<TextRegion>();
