@@ -21,6 +21,53 @@ namespace Flow.Launcher.Plugin.DihThing
         public List<Result> Query(Query query)
         {
             string searchText = query.Search;
+
+            // Special handling for win-vind easyclick
+            if (_settings.UseWinVind && (searchText.TrimEnd() == "?" || searchText.TrimEnd() == "!?" ||
+                                         searchText.TrimEnd() == "@?"))
+            {
+                string clickCommand;
+                string title;
+
+                if (searchText.TrimEnd() == "!?")
+                {
+                    clickCommand = "<easyclick><click_right>";
+                    title = "Win-Vind EasyClick (Right Click)";
+                }
+                else if (searchText.TrimEnd() == "@?")
+                {
+                    clickCommand = "<easyclick>";
+                    title = "Win-Vind EasyClick (Move Only)";
+                }
+                else
+                {
+                    clickCommand = "<easyclick><click_left>";
+                    title = "Win-Vind EasyClick (Left Click)";
+                }
+
+                var result = new Result
+                {
+                    Title = title,
+                    SubTitle = $"Execute: win-vind.exe -c \"{clickCommand}\"",
+                    Action = c =>
+                    {
+                        var processInfo = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = @"C:\Program Files\win-vind\win-vind.exe",
+                            Arguments = $"-c \"{clickCommand}\"",
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        System.Diagnostics.Process.Start(processInfo);
+                        return true;
+                    },
+                    IcoPath = "Images/app.png",
+                    Score = 100
+                };
+
+                return new List<Result> { result };
+            }
+
             var commands = new List<Command>();
             var commandStrings =
                 searchText.Split(new[] { _settings.CommandSeparator }, StringSplitOptions.RemoveEmptyEntries);
@@ -39,7 +86,7 @@ namespace Flow.Launcher.Plugin.DihThing
                 return new List<Result>();
             }
 
-            var result = new Result
+            var chainResult = new Result
             {
                 Title = $"Execute Chain: {searchText}",
                 SubTitle = $"Perform {commands.Count} actions",
@@ -48,7 +95,7 @@ namespace Flow.Launcher.Plugin.DihThing
                 Score = 100
             };
 
-            return new List<Result> { result };
+            return new List<Result> { chainResult };
         }
 
         private struct Command
@@ -556,12 +603,12 @@ namespace Flow.Launcher.Plugin.DihThing
             var labelLevenshtein = new System.Windows.Controls.Label
             {
                 Content = "Max Levenshtein Distance:",
-                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+                Margin = new System.Windows.Thickness(70, 15, 0, 0)
             };
             var textBoxLevenshtein = new System.Windows.Controls.TextBox
             {
                 Text = _settings.MaxLevenshteinDistance.ToString(),
-                Margin = new System.Windows.Thickness(0, 8, 0, 0)
+                Margin = new System.Windows.Thickness(70, 8, 0, 0)
             };
 
             textBoxLevenshtein.TextChanged += (_, _) =>
@@ -573,16 +620,40 @@ namespace Flow.Launcher.Plugin.DihThing
                 }
             };
 
+            // Use WinVind
+            var labelWinVind = new System.Windows.Controls.Label
+            {
+                Content = "Use WinVind:",
+                Margin = new System.Windows.Thickness(70, 15, 0, 0)
+            };
+            var checkBoxWinVind = new System.Windows.Controls.CheckBox
+            {
+                IsChecked = _settings.UseWinVind,
+                Margin = new System.Windows.Thickness(70, 8, 0, 0)
+            };
+
+            checkBoxWinVind.Checked += (_, _) =>
+            {
+                _settings.UseWinVind = true;
+                Context.API.SaveSettingJsonStorage<Settings>();
+            };
+
+            checkBoxWinVind.Unchecked += (_, _) =>
+            {
+                _settings.UseWinVind = false;
+                Context.API.SaveSettingJsonStorage<Settings>();
+            };
+
             // Command Separator
             var labelSeparator = new System.Windows.Controls.Label
             {
                 Content = "Command Separator:",
-                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+                Margin = new System.Windows.Thickness(70, 15, 0, 0)
             };
             var textBoxSeparator = new System.Windows.Controls.TextBox
             {
                 Text = _settings.CommandSeparator,
-                Margin = new System.Windows.Thickness(0, 8, 0, 0)
+                Margin = new System.Windows.Thickness(70, 8, 0, 0)
             };
 
             textBoxSeparator.TextChanged += (_, _) =>
@@ -595,12 +666,12 @@ namespace Flow.Launcher.Plugin.DihThing
             var labelDelay = new System.Windows.Controls.Label
             {
                 Content = "Command Delay (ms):",
-                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+                Margin = new System.Windows.Thickness(70, 15, 0, 0)
             };
             var textBoxDelay = new System.Windows.Controls.TextBox
             {
                 Text = _settings.CommandDelay.ToString(),
-                Margin = new System.Windows.Thickness(0, 8, 0, 0)
+                Margin = new System.Windows.Thickness(70, 8, 0, 0)
             };
 
             textBoxDelay.TextChanged += (_, _) =>
@@ -614,6 +685,8 @@ namespace Flow.Launcher.Plugin.DihThing
 
             panel.Children.Add(labelLevenshtein);
             panel.Children.Add(textBoxLevenshtein);
+            panel.Children.Add(labelWinVind);
+            panel.Children.Add(checkBoxWinVind);
             panel.Children.Add(labelSeparator);
             panel.Children.Add(textBoxSeparator);
             panel.Children.Add(labelDelay);
@@ -624,7 +697,7 @@ namespace Flow.Launcher.Plugin.DihThing
             {
                 Content = "Enable Adaptive Thresholding",
                 IsChecked = _settings.EnableAdaptiveThresholding,
-                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+                Margin = new System.Windows.Thickness(70, 15, 0, 0)
             };
 
             checkBoxThresholding.Checked += (_, _) =>
@@ -645,12 +718,12 @@ namespace Flow.Launcher.Plugin.DihThing
             var labelUpscale = new System.Windows.Controls.Label
             {
                 Content = "Upscale Factor (1-4):",
-                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+                Margin = new System.Windows.Thickness(70, 15, 0, 0)
             };
             var textBoxUpscale = new System.Windows.Controls.TextBox
             {
                 Text = _settings.UpscaleFactor.ToString(),
-                Margin = new System.Windows.Thickness(0, 8, 0, 0)
+                Margin = new System.Windows.Thickness(70, 8, 0, 0)
             };
 
             textBoxUpscale.TextChanged += (_, _) =>
