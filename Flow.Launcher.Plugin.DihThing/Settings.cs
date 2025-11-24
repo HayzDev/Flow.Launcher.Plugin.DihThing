@@ -16,5 +16,35 @@ namespace Flow.Launcher.Plugin.DihThing
 				}
 			}
 		}
+
+		private string _commandSeparator = ",";
+
+		public string CommandSeparator
+		{
+			get => _commandSeparator;
+			set
+			{
+				if (_commandSeparator != value)
+				{
+					_commandSeparator = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		private int _commandDelay = 300;
+
+		public int CommandDelay
+		{
+			get => _commandDelay;
+			set
+			{
+				if (_commandDelay != value)
+				{
+					_commandDelay = value;
+					OnPropertyChanged();
+				}
+			}
+		}
 	}
 }
