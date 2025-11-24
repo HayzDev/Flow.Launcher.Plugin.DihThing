@@ -3,19 +3,27 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using Tesseract;
 using System.Windows.Forms;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using Tesseract;
+using System.Windows.Forms;
 
 namespace Flow.Launcher.Plugin.DihThing
 {
 	/// <summary>
 	/// OCR utility class for screen capture and text recognition.
 	/// </summary>
+	/// <summary>
+	/// OCR utility class for screen capture and text recognition.
+	/// </summary>
 	public class Ocr
 	{
 		/// <summary>
-		/// Captures the primary screen and returns it as a Tesseract Pix object.
+		/// Captures the primary screen and returns it as a Bitmap.
 		/// </summary>
-		/// <returns>A Pix object representing the screen capture.</returns>
-		public static Pix CaptureScreen()
+		/// <returns>A Bitmap object representing the screen capture.</returns>
+		public static Bitmap CaptureScreen()
 		{
 			if (Screen.PrimaryScreen != null)
 			{
@@ -26,13 +34,7 @@ namespace Flow.Launcher.Plugin.DihThing
 					g.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bounds.Size);
 				}
 
-				// Convert Bitmap to Pix using modern Tesseract API
-				// Use fully qualified name to avoid ambiguity with Tesseract.ImageFormat
-				using (var ms = new System.IO.MemoryStream())
-				{
-					screenshot.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-					return Pix.LoadFromMemory(ms.ToArray());
-				}
+				return screenshot;
 			}
 
 			return null;
@@ -55,27 +57,27 @@ namespace Flow.Launcher.Plugin.DihThing
 		}
 
 		/// <summary>
-		/// Captures the screen and returns a list of recognized text regions with bounding boxes.
+		/// Processes a Bitmap image and returns a list of recognized text regions.
 		/// </summary>
+		/// <param name="image">The Bitmap image to process.</param>
+		/// <param name="scaleFactor">The factor to upscale the image by (1-4).</param>
+		/// <param name="enableThresholding">Whether to enable adaptive thresholding (grayscale conversion).</param>
 		/// <returns>A list of TextRegion objects.</returns>
-		public static List<TextRegion> GetScreenText()
+		public static List<TextRegion> GetTextFromBitmap(Bitmap image, int scaleFactor, bool enableThresholding)
 		{
-			using var img = CaptureScreen();
-			return GetTextFromPix(img);
-		}
+			if (image == null) return new List<TextRegion>();
 
-		/// <summary>
-		/// Processes a Pix image and returns a list of recognized text regions.
-		/// </summary>
-		/// <param name="img">The Pix image to process.</param>
-		/// <returns>A list of TextRegion objects.</returns>
-		public static List<TextRegion> GetTextFromPix(Pix img)
-		{
-			if (img == null) return new List<TextRegion>();
+			// Preprocess image
+			using var processedImage = PreprocessImage(image, scaleFactor, enableThresholding);
+
+			// Convert to Pix
+			using var ms = new System.IO.MemoryStream();
+			processedImage.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+			using var pix = Pix.LoadFromMemory(ms.ToArray());
 
 			string tessDataPath = @"C:\Program Files\Tesseract-OCR\tessdata";
 			using var engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
-			using var page = engine.Process(img);
+			using var page = engine.Process(pix);
 
 			var regions = new List<TextRegion>();
 			using var iter = page.GetIterator();
@@ -87,16 +89,63 @@ namespace Flow.Launcher.Plugin.DihThing
 					var text = iter.GetText(PageIteratorLevel.Word);
 					if (!string.IsNullOrWhiteSpace(text))
 					{
+						// Scale coordinates back down
+						int x = rect.X1 / scaleFactor;
+						int y = rect.Y1 / scaleFactor;
+						int w = rect.Width / scaleFactor;
+						int h = rect.Height / scaleFactor;
+
 						regions.Add(new TextRegion
 						{
 							Text = text,
-							Bounds = new Rectangle(rect.X1, rect.Y1, rect.Width, rect.Height)
+							Bounds = new Rectangle(x, y, w, h)
 						});
 					}
 				}
 			} while (iter.Next(PageIteratorLevel.Word));
 
 			return regions;
+		}
+
+		private static Bitmap PreprocessImage(Bitmap original, int scaleFactor, bool grayscale)
+		{
+			int width = original.Width * scaleFactor;
+			int height = original.Height * scaleFactor;
+			var resized = new Bitmap(width, height);
+
+			using (var g = Graphics.FromImage(resized))
+			{
+				g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+				g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+				g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+
+				if (grayscale)
+				{
+					// Grayscale Color Matrix
+					ColorMatrix colorMatrix = new ColorMatrix(
+						new float[][]
+						{
+							new float[] { .3f, .3f, .3f, 0, 0 },
+							new float[] { .59f, .59f, .59f, 0, 0 },
+							new float[] { .11f, .11f, .11f, 0, 0 },
+							new float[] { 0, 0, 0, 1, 0 },
+							new float[] { 0, 0, 0, 0, 1 }
+						});
+
+					using (var attributes = new ImageAttributes())
+					{
+						attributes.SetColorMatrix(colorMatrix);
+						g.DrawImage(original, new Rectangle(0, 0, width, height),
+							0, 0, original.Width, original.Height, GraphicsUnit.Pixel, attributes);
+					}
+				}
+				else
+				{
+					g.DrawImage(original, 0, 0, width, height);
+				}
+			}
+
+			return resized;
 		}
 	}
 }

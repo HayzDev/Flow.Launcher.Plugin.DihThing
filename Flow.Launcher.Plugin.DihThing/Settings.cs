@@ -1,3 +1,5 @@
+using Flow.Launcher.Plugin;
+
 namespace Flow.Launcher.Plugin.DihThing
 {
 	public class Settings : BaseModel
@@ -42,6 +44,36 @@ namespace Flow.Launcher.Plugin.DihThing
 				if (_commandDelay != value)
 				{
 					_commandDelay = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		private bool _enableAdaptiveThresholding = true;
+
+		public bool EnableAdaptiveThresholding
+		{
+			get => _enableAdaptiveThresholding;
+			set
+			{
+				if (_enableAdaptiveThresholding != value)
+				{
+					_enableAdaptiveThresholding = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		private int _upscaleFactor = 2;
+
+		public int UpscaleFactor
+		{
+			get => _upscaleFactor;
+			set
+			{
+				if (_upscaleFactor != value)
+				{
+					_upscaleFactor = value;
 					OnPropertyChanged();
 				}
 			}

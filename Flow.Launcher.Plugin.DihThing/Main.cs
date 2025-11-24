@@ -399,103 +399,136 @@ namespace Flow.Launcher.Plugin.DihThing
             // Small delay to ensure window is hidden
             System.Threading.Thread.Sleep(100);
 
-            foreach (var cmd in commands)
+            var activeOverlays = new List<QuadrantOverlay>();
+
+            try
             {
-                // Get screen bounds and calculate quadrant if specified
-                var screenBounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
-                System.Drawing.Rectangle? searchArea = null;
-
-                // Capture screen BEFORE showing any overlays to ensure clean OCR
-                using var screenImage = Ocr.CaptureScreen();
-
-                if (cmd.Quadrant.HasValue)
+                foreach (var cmd in commands)
                 {
-                    int halfWidth = screenBounds.Width / 2;
-                    int halfHeight = screenBounds.Height / 2;
-
-                    searchArea = cmd.Quadrant.Value switch
+                    // Close and dispose previous overlays before next command
+                    foreach (var overlay in activeOverlays)
                     {
-                        1 => new System.Drawing.Rectangle(0, 0, halfWidth, halfHeight), // Top-left
-                        2 => new System.Drawing.Rectangle(halfWidth, 0, halfWidth, halfHeight), // Top-right
-                        3 => new System.Drawing.Rectangle(0, halfHeight, halfWidth, halfHeight), // Bottom-left
-                        4 => new System.Drawing.Rectangle(halfWidth, halfHeight, halfWidth,
-                            halfHeight), // Bottom-right
-                        _ => null
-                    };
-
-                    // Show overlay for visual feedback of the quadrant
-                    if (searchArea.HasValue)
-                    {
-                        var overlay = new QuadrantOverlay(searchArea.Value);
-                        overlay.ShowTemporarily(500);
+                        overlay.Close();
+                        overlay.Dispose();
                     }
-                }
 
-                var regions = Ocr.GetTextFromPix(screenImage);
+                    activeOverlays.Clear();
 
-                // Filter regions by quadrant if specified
-                if (searchArea.HasValue)
-                {
-                    regions = regions.Where(r => searchArea.Value.IntersectsWith(r.Bounds)).ToList();
-                }
+                    // Get screen bounds and calculate quadrant if specified
+                    var screenBounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
+                    System.Drawing.Rectangle? searchArea = null;
 
-                var queryWords = cmd.SearchText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                var queryWordCount = queryWords.Length;
+                    // Capture screen BEFORE showing any overlays to ensure clean OCR
+                    using var screenImage = Ocr.CaptureScreen();
 
-                if (queryWordCount > 0)
-                {
-                    // Collect all matches instead of clicking the first one
-                    var matches = new List<(List<Ocr.TextRegion> regions, int centerX, int centerY)>();
-
-                    for (int i = 0; i <= regions.Count - queryWordCount; i++)
+                    if (cmd.Quadrant.HasValue)
                     {
-                        var candidateRegions = regions.GetRange(i, queryWordCount);
-                        var candidateText = string.Join(" ", candidateRegions.Select(r => r.Text)).ToLower();
-                        var queryTextLower = cmd.SearchText.ToLower();
+                        int halfWidth = screenBounds.Width / 2;
+                        int halfHeight = screenBounds.Height / 2;
 
-                        var distance = StringExtensions.LevenshteinDistance(candidateText, queryTextLower);
-                        var ratio = (double)distance / candidateText.Length;
-
-                        if (ratio <= _settings.MaxLevenshteinDistance)
+                        searchArea = cmd.Quadrant.Value switch
                         {
-                            var minX = candidateRegions.Min(r => r.Bounds.X);
-                            var minY = candidateRegions.Min(r => r.Bounds.Y);
-                            var maxX = candidateRegions.Max(r => r.Bounds.X + r.Bounds.Width);
-                            var maxY = candidateRegions.Max(r => r.Bounds.Y + r.Bounds.Height);
+                            1 => new System.Drawing.Rectangle(0, 0, halfWidth, halfHeight), // Top-left
+                            2 => new System.Drawing.Rectangle(halfWidth, 0, halfWidth, halfHeight), // Top-right
+                            3 => new System.Drawing.Rectangle(0, halfHeight, halfWidth, halfHeight), // Bottom-left
+                            4 => new System.Drawing.Rectangle(halfWidth, halfHeight, halfWidth,
+                                halfHeight), // Bottom-right
+                            _ => null
+                        };
 
-                            var centerX = (minX + maxX) / 2;
-                            var centerY = (minY + maxY) / 2;
-
-                            matches.Add((candidateRegions, centerX, centerY));
+                        // Show overlay for visual feedback of the quadrant
+                        if (searchArea.HasValue)
+                        {
+                            var overlay = new QuadrantOverlay(searchArea.Value);
+                            overlay.Show(); // Show without auto-close
+                            activeOverlays.Add(overlay);
                         }
                     }
 
-                    // Visualize all matches
-                    if (matches.Any())
+                    var regions = Ocr.GetTextFromBitmap(screenImage, _settings.UpscaleFactor,
+                        _settings.EnableAdaptiveThresholding);
+
+                    // Filter regions by quadrant if specified
+                    if (searchArea.HasValue)
                     {
-                        var allMatchRects = matches.SelectMany(m => m.regions.Select(r => r.Bounds)).ToList();
-                        var matchOverlay = new QuadrantOverlay(allMatchRects);
-                        matchOverlay.ShowTemporarily(500);
+                        regions = regions.Where(r => searchArea.Value.IntersectsWith(r.Bounds)).ToList();
+                    }
 
-                        // Select match based on direction
-                        var selectedMatch = cmd.Direction switch
+                    var queryWords = cmd.SearchText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    var queryWordCount = queryWords.Length;
+
+                    if (queryWordCount > 0)
+                    {
+                        // Collect all matches instead of clicking the first one
+                        var matches = new List<(List<Ocr.TextRegion> regions, int centerX, int centerY)>();
+
+                        for (int i = 0; i <= regions.Count - queryWordCount; i++)
                         {
-                            "L" => matches.OrderBy(m => m.centerX).First(), // Leftmost
-                            "R" => matches.OrderByDescending(m => m.centerX).First(), // Rightmost
-                            "T" => matches.OrderBy(m => m.centerY).First(), // Topmost
-                            "B" => matches.OrderByDescending(m => m.centerY).First(), // Bottommost
-                            _ => matches.First() // Default: first match
-                        };
+                            var candidateRegions = regions.GetRange(i, queryWordCount);
+                            var candidateText = string.Join(" ", candidateRegions.Select(r => r.Text)).ToLower();
+                            var queryTextLower = cmd.SearchText.ToLower();
 
-                        cmd.Action(selectedMatch.centerX, selectedMatch.centerY);
+                            var distance = StringExtensions.LevenshteinDistance(candidateText, queryTextLower);
+                            var ratio = (double)distance / candidateText.Length;
+
+                            if (ratio <= _settings.MaxLevenshteinDistance)
+                            {
+                                var minX = candidateRegions.Min(r => r.Bounds.X);
+                                var minY = candidateRegions.Min(r => r.Bounds.Y);
+                                var maxX = candidateRegions.Max(r => r.Bounds.X + r.Bounds.Width);
+                                var maxY = candidateRegions.Max(r => r.Bounds.Y + r.Bounds.Height);
+
+                                var centerX = (minX + maxX) / 2;
+                                var centerY = (minY + maxY) / 2;
+
+                                matches.Add((candidateRegions, centerX, centerY));
+                            }
+                        }
+
+                        // Visualize all matches
+                        if (matches.Any())
+                        {
+                            var allMatchRects = matches.SelectMany(m => m.regions.Select(r => r.Bounds)).ToList();
+                            var matchOverlay = new QuadrantOverlay(allMatchRects);
+                            matchOverlay.Show(); // Show without auto-close
+                            activeOverlays.Add(matchOverlay);
+
+                            // Select match based on direction
+                            var selectedMatch = cmd.Direction switch
+                            {
+                                "L" => matches.OrderBy(m => m.centerX).First(), // Leftmost
+                                "R" => matches.OrderByDescending(m => m.centerX).First(), // Rightmost
+                                "T" => matches.OrderBy(m => m.centerY).First(), // Topmost
+                                "B" => matches.OrderByDescending(m => m.centerY).First(), // Bottommost
+                                _ => matches.First() // Default: first match
+                            };
+
+                            cmd.Action(selectedMatch.centerX, selectedMatch.centerY);
+                        }
+                        else
+                        {
+                            // No matches found - terminate chain early
+                            return false;
+                        }
+                    }
+
+                    // Delay between commands
+                    if (commands.IndexOf(cmd) < commands.Count - 1)
+                    {
+                        System.Threading.Thread.Sleep(_settings.CommandDelay);
                     }
                 }
-
-                // Delay between commands
-                if (commands.IndexOf(cmd) < commands.Count - 1)
+            }
+            finally
+            {
+                // Clean up any remaining overlays
+                foreach (var overlay in activeOverlays)
                 {
-                    System.Threading.Thread.Sleep(_settings.CommandDelay);
+                    overlay.Close();
+                    overlay.Dispose();
                 }
+
+                activeOverlays.Clear();
             }
 
             return true;
@@ -520,9 +553,16 @@ namespace Flow.Launcher.Plugin.DihThing
             var panel = new System.Windows.Controls.StackPanel();
 
             // Max Levenshtein Distance
-            var labelLevenshtein = new System.Windows.Controls.Label { Content = "Max Levenshtein Distance:" };
+            var labelLevenshtein = new System.Windows.Controls.Label
+            {
+                Content = "Max Levenshtein Distance:",
+                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+            };
             var textBoxLevenshtein = new System.Windows.Controls.TextBox
-                { Text = _settings.MaxLevenshteinDistance.ToString() };
+            {
+                Text = _settings.MaxLevenshteinDistance.ToString(),
+                Margin = new System.Windows.Thickness(0, 8, 0, 0)
+            };
 
             textBoxLevenshtein.TextChanged += (_, _) =>
             {
@@ -534,9 +574,16 @@ namespace Flow.Launcher.Plugin.DihThing
             };
 
             // Command Separator
-            var labelSeparator = new System.Windows.Controls.Label { Content = "Command Separator:" };
+            var labelSeparator = new System.Windows.Controls.Label
+            {
+                Content = "Command Separator:",
+                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+            };
             var textBoxSeparator = new System.Windows.Controls.TextBox
-                { Text = _settings.CommandSeparator };
+            {
+                Text = _settings.CommandSeparator,
+                Margin = new System.Windows.Thickness(0, 8, 0, 0)
+            };
 
             textBoxSeparator.TextChanged += (_, _) =>
             {
@@ -545,9 +592,16 @@ namespace Flow.Launcher.Plugin.DihThing
             };
 
             // Command Delay
-            var labelDelay = new System.Windows.Controls.Label { Content = "Command Delay (ms):" };
+            var labelDelay = new System.Windows.Controls.Label
+            {
+                Content = "Command Delay (ms):",
+                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+            };
             var textBoxDelay = new System.Windows.Controls.TextBox
-                { Text = _settings.CommandDelay.ToString() };
+            {
+                Text = _settings.CommandDelay.ToString(),
+                Margin = new System.Windows.Thickness(0, 8, 0, 0)
+            };
 
             textBoxDelay.TextChanged += (_, _) =>
             {
@@ -564,6 +618,56 @@ namespace Flow.Launcher.Plugin.DihThing
             panel.Children.Add(textBoxSeparator);
             panel.Children.Add(labelDelay);
             panel.Children.Add(textBoxDelay);
+
+            // Adaptive Thresholding
+            var checkBoxThresholding = new System.Windows.Controls.CheckBox
+            {
+                Content = "Enable Adaptive Thresholding",
+                IsChecked = _settings.EnableAdaptiveThresholding,
+                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+            };
+
+            checkBoxThresholding.Checked += (_, _) =>
+            {
+                _settings.EnableAdaptiveThresholding = true;
+                Context.API.SaveSettingJsonStorage<Settings>();
+            };
+
+            checkBoxThresholding.Unchecked += (_, _) =>
+            {
+                _settings.EnableAdaptiveThresholding = false;
+                Context.API.SaveSettingJsonStorage<Settings>();
+            };
+
+            panel.Children.Add(checkBoxThresholding);
+
+            // Upscale Factor
+            var labelUpscale = new System.Windows.Controls.Label
+            {
+                Content = "Upscale Factor (1-4):",
+                Margin = new System.Windows.Thickness(0, 15, 0, 0)
+            };
+            var textBoxUpscale = new System.Windows.Controls.TextBox
+            {
+                Text = _settings.UpscaleFactor.ToString(),
+                Margin = new System.Windows.Thickness(0, 8, 0, 0)
+            };
+
+            textBoxUpscale.TextChanged += (_, _) =>
+            {
+                if (int.TryParse(textBoxUpscale.Text, out int result))
+                {
+                    // Clamp value between 1 and 4
+                    if (result < 1) result = 1;
+                    if (result > 4) result = 4;
+
+                    _settings.UpscaleFactor = result;
+                    Context.API.SaveSettingJsonStorage<Settings>();
+                }
+            };
+
+            panel.Children.Add(labelUpscale);
+            panel.Children.Add(textBoxUpscale);
 
             return new System.Windows.Controls.UserControl { Content = panel };
         }
